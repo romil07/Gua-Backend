@@ -1,0 +1,50 @@
+on: [push]
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@master
+    
+    - uses: azure/docker-login@v1
+      with:
+        login-server: rogoyalacr.azurecr.io
+        username: ${{ secrets.acr_rogoyalacr_username }}
+        password: ${{ secrets.acr_rogoyalacr_password }}
+    
+    - name: Build and push image to ACR
+      id: build-image
+      run: |
+        docker build "$GITHUB_WORKSPACE/AIG" -f  "AIG/Dockerfile" -t rogoyalacr.azurecr.io/rogoyalaks1:${{ github.sha }}
+        docker push rogoyalacr.azurecr.io/rogoyalaks1:${{ github.sha }}
+    
+    - uses: azure/k8s-set-context@v1
+      with:
+         kubeconfig: ${{ secrets.aks_rogoyalaks1_kubeConfig }}
+      id: login
+    
+    - name: Create namespace
+      run: |
+        namespacePresent=`kubectl get namespace | grep rogoyal-aks19a15 | wc -l`
+        if [ $namespacePresent -eq 0 ]
+        then
+            echo `kubectl create namespace rogoyal-aks19a15`
+        fi
+
+    - uses: azure/k8s-create-secret@v1
+      with:
+        namespace: rogoyal-aks19a15
+        container-registry-url: rogoyalacr.azurecr.io
+        container-registry-username: ${{ secrets.acr_rogoyalacr_username }}
+        container-registry-password: ${{ secrets.acr_rogoyalacr_password }}
+        secret-name: rogoyalaks1dockerauth
+       
+    - uses: azure/k8s-deploy@v1.2
+      with:
+        namespace: rogoyal-aks19a15
+        manifests: |
+          manifests/deployment.yml
+          manifests/service.yml
+        images: |
+          rogoyalacr.azurecr.io/rogoyalaks1:${{ github.sha }}
+        imagepullsecrets: |
+          rogoyalaks1dockerauth

@@ -43,7 +43,7 @@ namespace AIG.Controllers
         [HttpGet]
         public string Name()
         {
-           return "My name is Manish Narula";
+           return "This is a test message.";
         }
     }
 }
